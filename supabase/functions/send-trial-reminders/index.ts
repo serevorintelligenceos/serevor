@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not_configured" }, 503);
   }
   const from = Deno.env.get("RESEND_FROM") || "Serevor <onboarding@resend.dev>";
-  const support = Deno.env.get("SUPPORT_EMAIL") || "support.nexora.app@gmail.com";
+  const support = Deno.env.get("SUPPORT_EMAIL") || "support.serevor.app@gmail.com";
 
   // deno-lint-ignore no-explicit-any
   let body: any = {};
