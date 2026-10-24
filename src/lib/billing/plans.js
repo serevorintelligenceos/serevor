@@ -1,0 +1,110 @@
+// =====================================================================
+// Serevor Pro: single source of truth for pricing, limits and the sales copy.
+//
+// ONE provider (Dodo Payments, merchant of record) and ONE price list, shown in US
+// dollars to everyone. At checkout Dodo shows each buyer their local currency.
+//
+// ⚠ PRICES here are what the app DISPLAYS. Create two products in Dodo (monthly and
+//   annual) with exactly these USD amounts. The server decides what is charged.
+// ⚠ TRIAL: set TRIAL_DAYS to 0 to remove every trial mention. If > 0, the trial
+//   must also be configured on the Dodo products.
+// =====================================================================
+import { FREE, PRO } from '../journal/constants.js'
+
+export const TRIAL_DAYS = 7
+
+// Hero headline (a factual claim: keep it only while you can back it up).
+export const HEADLINE_LEAD = 'Join growth-seekers saving'
+export const HEADLINE_ACCENT = '14 hours every week.'
+
+export const PRICES = { month: 13.99, year: 139.99 }
+
+// Public policy pages (Dodo asks for them). Edit the wording in src/pages/Legal.jsx.
+export const LEGAL = { terms: '/terms', privacy: '/privacy', refunds: '/refunds' }
+
+// Mirrors the limits enforced by the Edge Functions (the server is the boss).
+// New captures AND AI analyses per rolling 24 hours. Enforced in the database (capture_items_guard and
+// ai_usage_capture_guard triggers) and in the capture-analyze Edge Function: keep all three in sync.
+export const CAPTURE = { free: 10, pro: 100 }
+// Smart Capture folders you create yourself (Pro: unlimited). Enforced by the collections_guard trigger.
+export const CAPTURE_FOLDERS = { free: 3 }
+// Images read per post (keep in sync with MAX_SLIDES in capture-analyze and my_capture_quota()).
+export const MAX_SLIDES = 10
+const CHAT = { free: 15, pro: 150 }              // ai-chat, per day
+const PHYSICAL = { free: 3, pro: 12 }            // physical-ai: free per month, Pro per day
+
+export const COMPARE = [
+  ['Smart Capture saves and AI analysis', `${CAPTURE.free} a day`, `${CAPTURE.pro} a day`],
+  ['Smart Capture folders', `${CAPTURE_FOLDERS.free}`, 'Unlimited'],
+  ['AI Companion chat', `${CHAT.free} messages a day`, `${CHAT.pro} messages a day`],
+  ['Ask your journal', null, 'Included'],
+  ['AI weekly reflection', `${FREE.reflectionsPerMonth} a month`, 'Whenever you want'],
+  ['Journal AI prompts', `${FREE.aiPromptsPerDay} a day`, `${PRO.aiPromptsPerDay} a day`],
+  ['Neuro+ Brain Progress', 'Best scores', 'Trends and weekly report'],
+  ['Insights: heatmap, mood, rhythm', null, 'Included'],
+  ['Journal folders', `${FREE.folders}`, 'Unlimited'],
+  ['Private encrypted entries', `${FREE.privateEntries}`, 'Unlimited'],
+  ['Physical AI readings', `${PHYSICAL.free} a month`, `${PHYSICAL.pro} a day`],
+]
+
+// Pain -> transformation. Every promise maps to something the app really does.
+// `keys` link a story to the paywall reason that sent the person here.
+export const STORIES = [
+  { id: 'capture', icon: 'inbox', proOnly: false,
+    pain: 'The reels and links you saved and never opened again.',
+    gain: 'Send Serevor a reel, link, article or voice note. It pulls out the tools, links and next steps, then files it for you.',
+    proof: `${CAPTURE.pro} AI captures a day, 10 times the free amount, and unlimited folders`, keys: ['capture', 'capture_folders'] },
+  { id: 'ask', icon: 'brain', proOnly: true,
+    pain: 'Notes you wrote once and could never find again.',
+    gain: 'Ask your journal anything and get answers in your own words, from your own life.',
+    proof: `Ask your journal, plus ${CHAT.pro} AI Companion messages a day`, keys: ['ask', 'prompts'] },
+  { id: 'neuro', icon: 'zap', proOnly: true,
+    pain: 'Free time that quietly disappears into the scroll.',
+    gain: 'Neuro+ shows your memory, focus and speed getting sharper, week after week.',
+    proof: 'Brain Progress: trends, records and a weekly brain report', keys: ['neuro'] },
+  { id: 'patterns', icon: 'chart', proOnly: true,
+    pain: 'Good weeks and bad weeks, and no idea why.',
+    gain: 'See your rhythm, your moods and what moves them, then get an AI reflection on your week.',
+    proof: 'Year heatmap, mood trend, weekly rhythm and AI reflections', keys: ['insights', 'reflection'] },
+  { id: 'private', icon: 'shield', proOnly: false,
+    pain: 'Holding back because it is too personal to write down.',
+    gain: 'Write the real thing. Private entries are end-to-end encrypted, so only you can read them.',
+    proof: 'Unlimited private entries and folders, smart tags and premium templates', keys: ['private', 'private_folders', 'folders', 'smart_tags', 'templates'] },
+  { id: 'body', icon: 'heart', proOnly: false,
+    pain: 'Symptoms you cannot explain when you finally see a doctor.',
+    gain: 'Physical turns your patterns into possible reasons and a visit summary, each tied to the data behind it.',
+    proof: 'Reasons, doctor-visit summary, 3 experiments and many more AI readings', keys: ['reasons', 'visit', 'experiments', 'ai'] },
+]
+
+// What the person was trying to do when they hit the paywall (shown back to them).
+export const REASON_LABEL = {
+  capture: 'More Smart Capture', capture_folders: 'More Smart Capture folders', neuro: 'Brain Progress', ask: 'Ask your journal', reflection: 'Weekly AI reflections',
+  insights: 'Insights', private: 'More private entries', private_folders: 'Private folders', folders: 'More folders',
+  prompts: 'More AI prompts', smart_tags: 'AI smart tags', templates: 'Premium templates',
+  reasons: 'Reasons behind your patterns', visit: 'Doctor-visit summary', experiments: 'More experiments', ai: 'More AI readings',
+}
+
+export function money(amount) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
+}
+
+// Everything below is computed from PRICES so the savings shown can never drift from the real numbers.
+export const yearlyPerMonth = () => PRICES.year / 12
+export const yearlyPerDay = () => PRICES.year / 365
+export const savingsPercent = () => Math.round((1 - PRICES.year / (PRICES.month * 12)) * 100)
+
+// Dates are always computed from "now", never typed in. Calendar-day arithmetic
+// (not 24h blocks) so a daylight-saving change can never shift a date by one.
+export function addDays(fromMs, n) {
+  const d = new Date(fromMs)
+  d.setDate(d.getDate() + n)
+  return d
+}
+export function shortDate(d) {
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
+export function fullDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}

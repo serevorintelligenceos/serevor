@@ -1,0 +1,21 @@
+import './lib/legacyMigrate.js' // must stay first: moves old `nexora_*` storage keys to `serevor_*` before anything reads them
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
+import './index.css'
+import { initTheme } from './lib/theme.js'
+import { registerServiceWorker } from './lib/pwa.js'
+
+// Apply the saved theme before first paint so there's no dark/light flash.
+initTheme()
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </React.StrictMode>
+)
+
+registerServiceWorker()
