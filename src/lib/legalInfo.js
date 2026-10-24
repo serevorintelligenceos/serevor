@@ -7,10 +7,10 @@
 // =====================================================================
 export const LEGAL_INFO = {
   product: 'Serevor',
-  operator: 'serevor team',
-  email: 'support.nexora.app@gmail.com',
+  operator: 'Serevor Team',
+  email: 'support.serevor.app@gmail.com',
   jurisdiction: 'India',
-  updated: '11 October 2026',
+  updated: '24 October 2026',
 }
 
 export const LEGAL_READY = !LEGAL_INFO.operator.startsWith('[') && !LEGAL_INFO.email.startsWith('[')
