@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, User, Palette, Bell, Cloud, ShieldCheck, Info, LogOut,
   Check, Download, Trash2, Smartphone, Monitor, Moon, Sun, RefreshCw, Loader2,
-  Wifi, WifiOff,
+  Wifi, WifiOff, Lock,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { usePlan } from '../lib/billing/usePlan.js'
@@ -216,9 +216,6 @@ function AccountSection({ session, notify }) {
   const [nameLoaded, setNameLoaded] = useState(false)
   const [savingName, setSavingName] = useState(false)
   const [plan, setPlan] = useState('Free')
-  const [pw, setPw] = useState('')
-  const [pw2, setPw2] = useState('')
-  const [savingPw, setSavingPw] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -258,20 +255,6 @@ function AccountSection({ session, notify }) {
     }
   }
 
-  async function changePassword() {
-    if (pw.length < 8) return notify('Use at least 8 characters.')
-    if (pw !== pw2) return notify("Passwords don't match.")
-    setSavingPw(true)
-    const { error } = await supabase.auth.updateUser({ password: pw })
-    setSavingPw(false)
-    if (error) notify(error.message)
-    else {
-      setPw('')
-      setPw2('')
-      notify('Password updated.')
-    }
-  }
-
   return (
     <div className="flex flex-col gap-lg">
       <div>
@@ -299,21 +282,6 @@ function AccountSection({ session, notify }) {
       <div>
         <SectionTitle>Plan</SectionTitle>
         <PlanCard notify={notify} />
-      </div>
-
-      <div>
-        <SectionTitle>Change password</SectionTitle>
-        <div className="card p-md flex flex-col gap-md">
-          <Field label="New password">
-            <input type="password" autoComplete="new-password" className="input" value={pw} onChange={(e) => setPw(e.target.value)} />
-          </Field>
-          <Field label="Confirm new password">
-            <input type="password" autoComplete="new-password" className="input" value={pw2} onChange={(e) => setPw2(e.target.value)} />
-          </Field>
-          <button onClick={changePassword} disabled={savingPw || !pw} className="btn-secondary disabled:opacity-50">
-            {savingPw ? 'Updating…' : 'Update password'}
-          </button>
-        </div>
       </div>
 
       <button
@@ -644,6 +612,97 @@ function PinForm({ mode, userId, onDone, onCancel, notify }) {
   )
 }
 
+function ChangePasswordCard({ notify }) {
+  const [open, setOpen] = useState(false)
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const firstRef = useRef(null)
+
+  useEffect(() => {
+    if (open) firstRef.current?.focus()
+  }, [open])
+
+  function close() {
+    setOpen(false)
+    setPw('')
+    setPw2('')
+    setError('')
+  }
+
+  async function submit(e) {
+    e.preventDefault()
+    if (saving) return
+    if (pw.length < 8) return setError('Use at least 8 characters.')
+    if (pw !== pw2) return setError("Passwords don't match.")
+    setError('')
+    setSaving(true)
+    const { error: err } = await supabase.auth.updateUser({ password: pw })
+    setSaving(false)
+    if (err) {
+      setError(err.message || "Couldn't update your password. Please try again.")
+      return
+    }
+    close()
+    notify('Password updated.')
+  }
+
+  return (
+    <div className="card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-expanded={open}
+        aria-controls="change-password-form"
+        className="w-full p-md flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-md">
+          <IconBubble icon={Lock} tint="text-primary" />
+          <div>
+            <h3 className="text-body text-ink-primary">Change password</h3>
+            <p className="text-caption text-ink-secondary">Choose a new password for your account</p>
+          </div>
+        </div>
+        <ChevronRight size={20} className={`text-ink-secondary transition-transform ${open ? 'rotate-90' : ''}`} />
+      </button>
+
+      {open && (
+        <form id="change-password-form" onSubmit={submit} className="px-md pb-md flex flex-col gap-md border-t border-base-border pt-md">
+          <Field label="New password">
+            <input
+              ref={firstRef}
+              type="password"
+              autoComplete="new-password"
+              className="input"
+              value={pw}
+              onChange={(e) => { setPw(e.target.value); setError('') }}
+            />
+          </Field>
+          <Field label="Confirm new password">
+            <input
+              type="password"
+              autoComplete="new-password"
+              className="input"
+              value={pw2}
+              onChange={(e) => { setPw2(e.target.value); setError('') }}
+            />
+          </Field>
+          {error && <p role="alert" className="text-caption text-error">{error}</p>}
+          <div className="flex gap-sm">
+            <button type="button" onClick={close} disabled={saving} className="btn-secondary flex-1 disabled:opacity-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving || !pw || !pw2} className="btn-primary py-3 flex-1 disabled:opacity-50">
+              {saving ? 'Updating…' : 'Update password'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function PrivacySection({ session, notify }) {
   const userId = session.user.id
   const [lockOn, setLockOn] = useState(() => isLockEnabled(userId))
@@ -710,6 +769,11 @@ function PrivacySection({ session, notify }) {
         <p className="text-caption text-ink-tertiary mt-sm px-xs">
           The PIN stays on this device and protects against someone using your unlocked phone or computer. Biometric unlock will arrive with the mobile apps.
         </p>
+      </div>
+
+      <div>
+        <SectionTitle>Password</SectionTitle>
+        <ChangePasswordCard notify={notify} />
       </div>
 
       <div>
@@ -811,13 +875,13 @@ export default function Settings({ session }) {
     body = (
       <div className="flex flex-col gap-lg">
         <Group>
-          <NavRow icon={User} tint="text-primary" title="Account" subtitle="Profile, password, plan" onClick={() => navigate('/settings/account')} />
+          <NavRow icon={User} tint="text-primary" title="Account" subtitle="Profile and plan" onClick={() => navigate('/settings/account')} />
         </Group>
         <Group>
           <NavRow icon={Palette} tint="text-secondary" title="Appearance" subtitle={`${modeLabel(settings.dark_mode)} theme, accent color`} onClick={() => navigate('/settings/appearance')} />
           <NavRow icon={Bell} tint="text-warning" title="Notifications" subtitle={settings.push_notifications ? 'On' : 'Off'} onClick={() => navigate('/settings/notifications')} />
           <NavRow icon={Cloud} tint="text-primary" title="Data & Backup" subtitle="Sync status, export" onClick={() => navigate('/settings/data')} />
-          <NavRow icon={ShieldCheck} tint="text-success" title="Privacy & Security" subtitle="App lock, devices, delete account" onClick={() => navigate('/settings/privacy')} />
+          <NavRow icon={ShieldCheck} tint="text-success" title="Privacy & Security" subtitle="App lock, password, devices, delete account" onClick={() => navigate('/settings/privacy')} />
         </Group>
         <Group>
           <NavRow icon={Info} tint="text-ink-secondary" title="About" subtitle={`Version ${APP_VERSION}`} onClick={() => navigate('/settings/about')} />
