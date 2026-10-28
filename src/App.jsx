@@ -21,6 +21,7 @@ import Settings from './pages/Settings.jsx'
 import Upgrade, { UpgradeDone } from './pages/Upgrade.jsx'
 import NeuroProgress from './pages/NeuroProgress.jsx'
 import AppLock from './components/AppLock.jsx'
+import { disableLock } from './lib/appLock.js'
 import Sidebar from './components/Sidebar.jsx'
 import { applyTheme } from './lib/theme.js'
 
@@ -115,7 +116,15 @@ export default function App() {
     return <Login />
   }
 
-  const lockForgot = () => supabase.auth.signOut()
+  // "Forgot PIN?" → sign out AND remove the PIN, so signing back in goes straight into the app.
+  // The PIN is removed only after sign-out really succeeded; otherwise anyone could bypass the lock
+  // (e.g. while offline) just by tapping "Forgot PIN?". Resolves true on success, false on failure.
+  const lockForgot = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) return false
+    disableLock()
+    return true
+  }
 
   // Signed in but never onboarded → 15-question flow
   if (needsOnboarding) {
