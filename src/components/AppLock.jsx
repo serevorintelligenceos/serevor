@@ -111,7 +111,19 @@ function LockScreen({ userId, onUnlock, onForgot }) {
         )}
       </div>
 
-      <button onClick={onForgot} className="mt-xl text-body-small text-ink-secondary hover:text-primary transition-colors">
+      <button
+        onClick={async () => {
+          if (busy) return
+          setBusy(true)
+          const ok = await onForgot()
+          if (ok === false) {
+            setBusy(false)
+            setMsg("Couldn't sign out. Check your connection and try again.")
+          }
+        }}
+        disabled={busy}
+        className="mt-xl text-body-small text-ink-secondary hover:text-primary transition-colors disabled:opacity-40"
+      >
         Forgot PIN? Sign out
       </button>
     </div>
