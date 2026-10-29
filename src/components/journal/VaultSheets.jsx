@@ -249,12 +249,13 @@ function VaultSettings({ onClose }) {
       {view === 'reset' && (
         <div className="flex flex-col gap-md">
           <div className="rounded-card border border-error/40 bg-error/10 p-md text-body-small text-ink-primary leading-relaxed">
-            This <b>permanently deletes all your private entries</b> and the vault. Only use it if you've lost both your passphrase and recovery key. Normal entries are not affected.
+            This <b>permanently deletes all your private entries</b> and the vault. It can't be undone. Normal entries are not affected. Enter your vault passphrase to confirm it's you. If you forgot your passphrase, use your recovery key from the unlock screen instead.
           </div>
+          <PassField value={a} onChange={setA} placeholder="Your vault passphrase" autoFocus />
           <input className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder='Type "DELETE" to confirm' autoCapitalize="characters" />
           <Msg>{err}</Msg>
           <div className="flex gap-sm"><button className="btn-secondary flex-1 py-3" onClick={back}>Cancel</button>
-            <button className="flex-1 py-3 rounded-button bg-error text-white font-semibold uppercase tracking-wider text-sm disabled:opacity-40" disabled={busy || confirm !== 'DELETE'} onClick={() => run(async () => { await resetVault(); back(); onClose() })}>{busy ? 'Deleting…' : 'Delete everything'}</button></div>
+            <button className="flex-1 py-3 rounded-button bg-error text-white font-semibold uppercase tracking-wider text-sm disabled:opacity-40" disabled={busy || confirm !== 'DELETE' || !a} onClick={() => run(async () => { await resetVault(a); back(); onClose() })}>{busy ? 'Deleting…' : 'Delete everything'}</button></div>
         </div>
       )}
     </Sheet>
