@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Sparkles, Copy, Check, RefreshCw, Share2 } from 'lucide-react'
 import { copyText, shareText } from '../../lib/share.js'
+import Markdown from './Markdown.jsx'
 
 export function AiAvatar() {
   return (
@@ -13,7 +14,8 @@ export function AiAvatar() {
 const actionClass =
   'flex items-center gap-1.5 px-2 py-1.5 rounded-md text-caption font-medium text-ink-tertiary hover:text-primary hover:bg-base-elevated transition-colors duration-200 disabled:opacity-40 disabled:hover:text-ink-tertiary disabled:hover:bg-transparent'
 
-// role: 'user' | 'assistant'. Plain-text rendering only (no HTML injection), whitespace preserved.
+// role: 'user' | 'assistant'. The user's own text is shown as typed; AI replies are rendered as Markdown
+// (bold, lists, tables, code…) from a parsed tree, so no HTML is ever injected.
 // `canRegenerate` is true only for the latest AI reply.
 export default function MessageBubble({ role, content, canRegenerate = false, onRegenerate, busy = false }) {
   const [copied, setCopied] = useState(false)
@@ -52,8 +54,8 @@ export default function MessageBubble({ role, content, canRegenerate = false, on
     <div className="flex items-start gap-sm self-start max-w-[92%] lg:max-w-[88%]">
       <AiAvatar />
       <div className="min-w-0">
-        <div className="bg-base-surface border border-base-border border-l-2 border-l-primary rounded-r-2xl rounded-bl-2xl px-md py-3 text-body text-ink-primary whitespace-pre-wrap break-words leading-relaxed shadow-card">
-          {content}
+        <div className="bg-base-surface border border-base-border border-l-2 border-l-primary rounded-r-2xl rounded-bl-2xl px-md py-3 text-body text-ink-primary break-words leading-relaxed shadow-card min-w-0 max-w-full">
+          <Markdown text={content} />
         </div>
         <div className="flex items-center gap-0.5 mt-1 -ml-1 flex-wrap" role="group" aria-label="Message actions">
           <button onClick={handleCopy} className={actionClass} aria-label="Copy reply">
