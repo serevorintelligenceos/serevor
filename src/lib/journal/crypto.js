@@ -77,6 +77,19 @@ export async function toUsableKey(masterKey) {
   return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
 }
 
+// Proof of being able to unlock the vault, used to authorise a vault reset on the server.
+//   proof = base64( SHA-256( "serevor-vault-reset-v1" || master key ) )
+// Needs an EXTRACTABLE master key (i.e. one that was just unwrapped with the passphrase or recovery key).
+// The server only ever stores sha256(proof); see supabase/migrations/20261029000000_vault_reset_guard.sql
+export async function resetProof(masterKey) {
+  const raw = new Uint8Array(await crypto.subtle.exportKey('raw', masterKey))
+  const label = enc.encode('serevor-vault-reset-v1')
+  const data = new Uint8Array(label.length + raw.length)
+  data.set(label, 0)
+  data.set(raw, label.length)
+  return toB64(await crypto.subtle.digest('SHA-256', data))
+}
+
 export async function createVault(passphrase, iter = KDF_ITER) {
   const master = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
   const recoveryKey = generateRecoveryKey()
@@ -91,7 +104,7 @@ export async function createVault(passphrase, iter = KDF_ITER) {
     wrapped_key: await wrap(master, kek),
     rec_wrapped_key: await wrap(master, rkek),
   }
-  return { row, recoveryKey, key: await toUsableKey(master) }
+  return { row, recoveryKey, key: await toUsableKey(master), proof: await resetProof(master) }
 }
 
 // Re-wrap an (extractable) master key under a new passphrase.
