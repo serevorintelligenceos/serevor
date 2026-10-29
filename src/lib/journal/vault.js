@@ -85,13 +85,24 @@ function validPassphrase(p) {
   if (typeof p !== 'string' || p.length < C.MIN_PASSPHRASE) throw new Error(`Use at least ${C.MIN_PASSPHRASE} characters.`)
 }
 
+// Registers the reset proof with the server (one-time, can never be replaced). Best effort: for vaults created before the
+// reset guard existed it simply happens on the next successful unlock.
+async function registerProof(proof) {
+  try {
+    await supabase.rpc('journal_vault_register', { p_proof: proof })
+  } catch {
+    /* retried on the next unlock */
+  }
+}
+
 // Returns the recovery key (show it ONCE; it is not stored anywhere in readable form).
 export async function setupVault(passphrase) {
   validPassphrase(passphrase)
   const userId = state.userId
-  const { row, recoveryKey, key } = await C.createVault(passphrase)
+  const { row, recoveryKey, key, proof } = await C.createVault(passphrase)
   const { error } = await supabase.from('journal_vault').insert({ user_id: userId, ...row })
   if (error) throw error
+  await registerProof(proof)
   emit({ row: { user_id: userId, ...row }, key, status: 'unlocked' })
   arm()
   return recoveryKey
@@ -104,10 +115,12 @@ export async function unlock(passphrase) {
   try {
     const row = state.row || (await loadVault())
     if (!row) return { ok: false, wait: 0, error: 'No vault found.' }
-    const master = await C.unwrapMaster(row.wrapped_key, passphrase, row.kdf_salt, row.kdf_iter)
+    const master = await C.unwrapMaster(row.wrapped_key, passphrase, row.kdf_salt, row.kdf_iter, true)
+    const usable = await C.toUsableKey(master)
     writeFails({ n: 0, until: 0 })
-    emit({ key: master, status: 'unlocked' })
+    emit({ key: usable, status: 'unlocked' })
     arm()
+    C.resetProof(master).then(registerProof).catch(() => {})
     return { ok: true, wait: 0 }
   } catch (err) {
     if (err.message === 'bad_secret') return { ok: false, wait: registerFail() }
@@ -129,6 +142,7 @@ export async function unlockWithRecovery(recoveryKey, newPassphrase) {
     writeFails({ n: 0, until: 0 })
     emit({ row: { ...row, ...next }, key: await C.toUsableKey(master), status: 'unlocked' })
     arm()
+    C.resetProof(master).then(registerProof).catch(() => {})
     return { ok: true, wait: 0 }
   } catch (err) {
     if (err.message === 'bad_secret') return { ok: false, wait: registerFail(), error: 'That recovery key is not right.' }
@@ -159,12 +173,38 @@ export async function regenerateRecovery(passphrase) {
   return recoveryKey
 }
 
-// Last resort when BOTH secrets are lost: permanently deletes private entries + vault.
-export async function resetVault() {
-  const { error: e1 } = await supabase.from('journal_entries').delete().eq('user_id', state.userId).eq('is_locked', true)
-  if (e1) throw e1
-  const { error: e2 } = await supabase.from('journal_vault').delete().eq('user_id', state.userId)
-  if (e2) throw e2
+// Permanently deletes private entries + the vault. Requires the vault passphrase, and the SERVER re-checks a proof derived
+// from it (journal_vault_reset), so a stolen login session alone cannot wipe the vault, not even by calling the API directly.
+export async function resetVault(passphrase) {
+  const wait = waitLeft()
+  if (wait) throw new Error(`Too many attempts. Try again in ${wait}s.`)
+  if (!passphrase) throw new Error('Enter your vault passphrase.')
+  const row = state.row || (await loadVault())
+  if (!row) throw new Error('No vault found.')
+
+  let master
+  try {
+    master = await C.unwrapMaster(row.wrapped_key, passphrase, row.kdf_salt, row.kdf_iter, true)
+  } catch (err) {
+    if (err.message === 'bad_secret') {
+      const w = registerFail()
+      throw new Error(w ? `Too many attempts. Try again in ${w}s.` : 'Wrong passphrase.')
+    }
+    throw new Error('Could not check your passphrase. Check your connection and try again.')
+  }
+  const proof = await C.resetProof(master)
+
+  let { error } = await supabase.rpc('journal_vault_reset', { p_proof: proof })
+  if (error && /vault_not_registered/.test(error.message)) {
+    // Vault created before the guard existed: the passphrase was just verified on this device, so register and retry once.
+    await registerProof(proof)
+    ;({ error } = await supabase.rpc('journal_vault_reset', { p_proof: proof }))
+  }
+  if (error && !/no_vault/.test(error.message)) {
+    if (/invalid_proof/.test(error.message)) throw new Error("Couldn't verify this reset. Please contact support.")
+    throw new Error('Could not reset the vault. Check your connection and try again.')
+  }
+  writeFails({ n: 0, until: 0 })
   clearTimeout(idleTimer)
   emit({ row: null, key: null, status: 'none' })
 }
