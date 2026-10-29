@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Compass, Wrench, BookOpen, RefreshCw, Sparkles, Plus, Check, Brain, Dumbbell,
+  Compass, Wrench, BookOpen, RefreshCw, Sparkles, Plus, Check, Brain, Dumbbell, Trash2,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import PhysicalTab from '../components/physical/PhysicalTab.jsx'
@@ -177,6 +177,7 @@ export default function PersonalDevelopment({ session }) {
   const [todayLogs, setTodayLogs] = useState({})
   const [newHabitName, setNewHabitName] = useState('')
   const [addingHabit, setAddingHabit] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null) // intention awaiting delete confirmation
   const [insight, setInsight] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -346,6 +347,22 @@ export default function PersonalDevelopment({ session }) {
     }
   }
 
+  async function deleteHabit(habit) {
+    const prevHabits = habits
+    const prevLog = todayLogs[habit.id]
+    setConfirmDeleteId(null)
+    setHabits((prev) => prev.filter((h) => h.id !== habit.id))
+    try {
+      // Its daily logs are removed automatically (habit_logs.habit_id ON DELETE CASCADE).
+      const { error } = await supabase.from('habits').delete().eq('id', habit.id).eq('user_id', session.user.id)
+      if (error) throw error
+    } catch (err) {
+      console.warn('Could not delete intention:', err.message)
+      setHabits(prevHabits) // put it back if the delete failed
+      setTodayLogs((prev) => ({ ...prev, [habit.id]: prevLog }))
+    }
+  }
+
   async function toggleHabit(habit) {
     const today = new Date().toISOString().slice(0, 10)
     const current = Boolean(todayLogs[habit.id])
@@ -496,28 +513,66 @@ export default function PersonalDevelopment({ session }) {
               <div className="flex flex-col gap-2">
                 {habits.map((h) => {
                   const on = Boolean(todayLogs[h.id])
+                  const confirming = confirmDeleteId === h.id
                   return (
-                    <button
+                    <div
                       key={h.id}
-                      onClick={() => toggleHabit(h)}
-                      className={`w-full p-3 rounded-xl border flex items-center justify-between transition ${
-                        on ? 'bg-base-surface border-primary/30' : 'bg-base-surface border-base-border opacity-70'
+                      className={`w-full p-3 rounded-xl border flex items-center justify-between gap-sm transition ${
+                        confirming
+                          ? 'bg-base-surface border-error/40'
+                          : on
+                            ? 'bg-base-surface border-primary/30'
+                            : 'bg-base-surface border-base-border opacity-70'
                       }`}
                     >
-                      <span className={`text-body ${on ? 'text-ink-primary' : 'text-ink-secondary'}`}>{h.name}</span>
-                      <div className="flex items-center gap-sm">
-                        {h.streak > 0 && <span className="text-caption text-ink-tertiary">{h.streak}d streak</span>}
-                        <div
-                          className={`w-10 h-5 rounded-full relative transition ${on ? 'bg-primary shadow-glow' : 'bg-base-elevated'}`}
-                        >
-                          <div
-                            className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
-                              on ? 'right-1 bg-base-bg' : 'left-1 bg-ink-secondary'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </button>
+                      {confirming ? (
+                        <>
+                          <span className="text-body text-ink-primary min-w-0 truncate">Delete "{h.name}"?</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-3 py-1.5 rounded-lg text-body-small text-ink-secondary hover:text-ink-primary"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => deleteHabit(h)}
+                              className="px-3 py-1.5 rounded-lg text-body-small bg-error text-white"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => toggleHabit(h)} className="flex-1 min-w-0 text-left">
+                            <span className={`text-body ${on ? 'text-ink-primary' : 'text-ink-secondary'}`}>{h.name}</span>
+                          </button>
+                          {h.streak > 0 && <span className="text-caption text-ink-tertiary shrink-0">{h.streak}d streak</span>}
+                          <button
+                            onClick={() => toggleHabit(h)}
+                            role="switch"
+                            aria-checked={on}
+                            aria-label={`Mark "${h.name}" ${on ? 'not done' : 'done'} today`}
+                            className={`w-10 h-5 rounded-full relative transition shrink-0 ${on ? 'bg-primary shadow-glow' : 'bg-base-elevated'}`}
+                          >
+                            <span
+                              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+                                on ? 'right-1 bg-base-bg' : 'left-1 bg-ink-secondary'
+                              }`}
+                            />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(h.id)}
+                            aria-label={`Delete "${h.name}"`}
+                            title="Delete"
+                            className="shrink-0 p-1.5 -mr-1 rounded-lg text-ink-tertiary hover:text-error transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )
                 })}
                 <div className="flex gap-2 mt-1">
