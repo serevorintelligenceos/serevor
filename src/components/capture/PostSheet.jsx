@@ -6,7 +6,7 @@ import { prepareImage } from '../../lib/images.js'
 // Capture a post or carousel: add a screenshot of every slide (in order) and, optionally, the post's link.
 // Serevor reads the text and visuals of every slide, so the knowledge inside the post is captured, not just its caption.
 //   onSave({ url, blobs }) -> Promise; should throw on failure (the sheet then stays open)
-export default function PostSheet({ onClose, onSave }) {
+export default function PostSheet({ onClose, onSave, embedded = false }) {
   const [url, setUrl] = useState('')
   const [slides, setSlides] = useState([]) // [{ id, blob, preview }]
   const [preparing, setPreparing] = useState(false)
@@ -16,7 +16,9 @@ export default function PostSheet({ onClose, onSave }) {
   const slidesRef = useRef(slides)
   slidesRef.current = slides
 
+  // Embedded in the Posts sheet: that sheet owns scroll-lock and Escape; we only free the previews.
   useEffect(() => {
+    if (embedded) return () => slidesRef.current.forEach((s) => URL.revokeObjectURL(s.preview))
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -26,7 +28,7 @@ export default function PostSheet({ onClose, onSave }) {
       window.removeEventListener('keydown', onKey)
       slidesRef.current.forEach((s) => URL.revokeObjectURL(s.preview))
     }
-  }, [onClose])
+  }, [onClose, embedded])
 
   async function addFiles(e) {
     const files = [...(e.target.files || [])]
@@ -92,17 +94,8 @@ export default function PostSheet({ onClose, onSave }) {
 
   const busy = saving || preparing
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Capture a post">
-      <button aria-label="Close" className="absolute inset-0 bg-black/60 cursor-default" onClick={onClose} />
-      <div
-        className="relative w-full max-w-md lg:max-w-xl max-h-[92vh] overflow-y-auto bg-base-surface border-t border-base-border rounded-t-sheet p-md shadow-card"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
-      >
-        <div className="flex items-center justify-between mb-sm">
-          <h2 className="text-h3 text-ink-primary">Capture a post</h2>
-          <button aria-label="Close" onClick={onClose} className="text-ink-secondary hover:text-ink-primary"><X size={22} /></button>
-        </div>
+  const body = (
+    <>
         <p className="text-body-small text-ink-secondary mb-md leading-relaxed">
           The knowledge in a post lives in its slides. Screenshot <b>every slide in order</b> (swipe, screenshot, repeat), then select them all here. Serevor reads every slide and pulls out the tips, steps, tools and links.
         </p>
@@ -165,6 +158,23 @@ export default function PostSheet({ onClose, onSave }) {
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
           {saving ? 'Uploading…' : 'Save & analyze'}
         </button>
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Capture a post">
+      <button aria-label="Close" className="absolute inset-0 bg-black/60 cursor-default" onClick={onClose} />
+      <div
+        className="relative w-full max-w-md lg:max-w-xl max-h-[92vh] overflow-y-auto bg-base-surface border-t border-base-border rounded-t-sheet p-md shadow-card"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+      >
+        <div className="flex items-center justify-between mb-sm">
+          <h2 className="text-h3 text-ink-primary">Capture a post</h2>
+          <button aria-label="Close" onClick={onClose} className="text-ink-secondary hover:text-ink-primary"><X size={22} /></button>
+        </div>
+        {body}
       </div>
     </div>
   )

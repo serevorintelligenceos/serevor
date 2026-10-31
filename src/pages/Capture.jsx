@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Search, Settings, Sparkles, FileText, Link2, FileUp, Mic, Clapperboard, Images,
+  Search, Settings, Sparkles, FileText, Link2, FileUp, Mic, Images,
   RefreshCw, Inbox, Loader2,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import {
   findUrl, normalizeUrl, hostOf, detectPlatform, PLATFORM_LABEL, saveCapture, analyzeItem,
-  MAX_UPLOAD_BYTES, safeFileName, uploadSlides, removeStoredFiles, attachSlides, captureAtLimit, resetsIn,
+  MAX_UPLOAD_BYTES, MAX_PDF_BYTES, safeFileName, uploadSlides, removeStoredFiles, attachSlides, captureAtLimit, resetsIn,
   socialKind, slidePathsOf,
 } from '../lib/capture.js'
 import { prepareImage } from '../lib/images.js'
@@ -16,8 +16,7 @@ import { usePlan } from '../lib/billing/usePlan.js'
 import { CAPTURE } from '../lib/billing/plans.js'
 import ItemCard from '../components/capture/ItemCard.jsx'
 import CaptureSheet from '../components/capture/CaptureSheet.jsx'
-import ReelSheet from '../components/capture/ReelSheet.jsx'
-import PostSheet from '../components/capture/PostSheet.jsx'
+import PostsSheet from '../components/capture/PostsSheet.jsx'
 import SearchOverlay from '../components/capture/SearchOverlay.jsx'
 import CollectionsView from '../components/capture/CollectionsView.jsx'
 
@@ -40,7 +39,7 @@ export default function Capture({ session }) {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
   const [extractingIds, setExtractingIds] = useState(() => new Set())
-  const [sheet, setSheet] = useState(null) // null | { mode: 'note'|'voice'|'link', initialText? } | 'reel' | 'post'
+  const [sheet, setSheet] = useState(null) // null | { mode: 'note'|'voice'|'link', initialText? } | 'posts'
   const [searchOpen, setSearchOpen] = useState(false)
   const [collectionsKey, setCollectionsKey] = useState(0)
   const { isPro } = usePlan()
@@ -337,7 +336,8 @@ export default function Capture({ session }) {
       try { await handlePostSave({ url: null, blobs: [await prepareImage(file)] }) } catch (err) { showToast(err.message) }
       return
     }
-    if (file.size > MAX_UPLOAD_BYTES) { showToast('That file is over 24 MB. Please choose a smaller one.'); return }
+    const cap = ext0 === 'pdf' ? MAX_PDF_BYTES : MAX_UPLOAD_BYTES
+    if (file.size > cap) { showToast(`That file is over ${Math.round(cap / 1048576)} MB. Please choose a smaller one.`); return }
     if (!(await ensureCanCapture())) return
     showToast('Uploading ' + file.name + '…')
     let uploadedPath = null
@@ -454,14 +454,11 @@ export default function Capture({ session }) {
           <button onClick={pasteFromClipboard} className={chipClass}>
             <Link2 size={18} /> Paste URL
           </button>
-          <button onClick={() => setSheet('post')} className={chipClass}>
-            <Images size={18} /> Post / Slides
+          <button onClick={() => setSheet('posts')} className={chipClass}>
+            <Images size={18} /> Posts
           </button>
           <button onClick={() => setSheet({ mode: 'voice' })} className={chipClass}>
             <Mic size={18} /> Voice Note
-          </button>
-          <button onClick={() => setSheet('reel')} className={chipClass}>
-            <Clapperboard size={18} /> Send Reel
           </button>
           <button onClick={() => fileRef.current?.click()} className={chipClass}>
             <FileUp size={18} /> Upload PDF
@@ -525,8 +522,8 @@ export default function Capture({ session }) {
             <p className="text-body-small text-ink-secondary leading-relaxed mb-md">
               Save a post, reel, link, voice note or screenshots. Serevor extracts the tips and tools, organizes them and remembers them for you.
             </p>
-            <button onClick={() => setSheet('reel')} className="btn-primary h-11 inline-flex items-center gap-2">
-              <Clapperboard size={16} /> Send your first reel
+            <button onClick={() => setSheet('posts')} className="btn-primary h-11 inline-flex items-center gap-2">
+              <Images size={16} /> Save your first post
             </button>
           </div>
         ) : (
@@ -560,15 +557,13 @@ export default function Capture({ session }) {
           onSave={handleSheetSave}
         />
       )}
-      {sheet === 'post' && (
-        <PostSheet onClose={() => setSheet(null)} onSave={handlePostSave} />
-      )}
-      {sheet === 'reel' && (
-        <ReelSheet
+      {sheet === 'posts' && (
+        <PostsSheet
           userId={userId}
           onClose={() => setSheet(null)}
-          onPasteClipboard={pasteFromClipboard}
+          onSavePost={handlePostSave}
           onSaveRecording={handleRecordingSave}
+          onPasteClipboard={pasteFromClipboard}
         />
       )}
       {searchOpen && (

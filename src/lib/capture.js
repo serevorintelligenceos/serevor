@@ -1,3 +1,4 @@
+import { canonicalContentUrl } from './canonicalUrl.js'
 import { supabase } from './supabase.js'
 import { invokeFn } from './api.js'
 
@@ -37,7 +38,7 @@ export function normalizeUrl(raw) {
     for (const key of [...u.searchParams.keys()]) {
       if (TRACKING_PARAM.test(key)) u.searchParams.delete(key)
     }
-    const out = u.toString()
+    const out = canonicalContentUrl(u) || u.toString()
     return out.length <= 2048 ? out : null
   } catch {
     return null
@@ -127,14 +128,15 @@ export async function saveCapture(userId, f) {
 // Runs the AI analysis for one item. Returns { item, collection, needs_details, understanding }.
 // Parts the user has edited by hand (insights.locked) are never overwritten by the AI.
 export function analyzeItem(itemId) {
-  return invokeFn('capture-analyze', { item_id: itemId })
+  return invokeFn('smart-capture', { item_id: itemId })
 }
 
 // =====================================================================================
 // Audio: voice notes & screen-recorded reels
 // =====================================================================================
 
-export const MAX_UPLOAD_BYTES = 24 * 1024 * 1024 // transcribe function's limit
+export const MAX_UPLOAD_BYTES = 16 * 1024 * 1024 // recordings: ~8 min of 16 kHz mono WAV. Same as the storage bucket limit
+export const MAX_PDF_BYTES = 10 * 1024 * 1024 // PDFs are stored, not read: keep them small
 const ALLOWED_AUDIO_EXT = ['webm', 'm4a', 'mp4', 'mp3', 'mpeg', 'mpga', 'wav', 'ogg', 'flac', 'mov']
 
 export function recordingExt(mime = '') {
@@ -233,7 +235,7 @@ export async function transcribeMediaFile(userId, file) {
 
   const ext = (file.name.split('.').pop() || '').toLowerCase()
   if (!ALLOWED_AUDIO_EXT.includes(ext)) throw new Error('Unsupported format. Use mp4, mov, m4a, mp3, wav or webm.')
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error("Your browser couldn't compress that recording and it's over 24 MB. Try a shorter clip.")
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("Your browser couldn't compress that recording and it's over 16 MB. Try a shorter clip.")
   return transcribeBlob(userId, file, ext)
 }
 
@@ -419,7 +421,7 @@ export function resetsIn(iso) {
 // Posts and carousels: the slides the AI reads
 // =====================================================================================
 
-export const MAX_SLIDES = 10 // keep in sync with plans.js, capture-analyze and my_capture_quota()
+export const MAX_SLIDES = 10 // keep in sync with plans.js, smart-capture and my_capture_quota()
 export const SLIDES_START = "— Text read from the post's images —"
 export const SLIDES_END = '— end of image text —'
 

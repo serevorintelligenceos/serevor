@@ -4,7 +4,7 @@ import { findUrl, normalizeUrl, transcribeMediaFile } from '../../lib/capture.js
 import { canPromptInstall, isIOS, isStandalone, onInstallStateChange, promptInstall } from '../../lib/pwa.js'
 
 // The "send a reel to Serevor" hub. Three routes, from easiest to most complete.
-export default function ReelSheet({ userId, onClose, onPasteClipboard, onSaveRecording }) {
+export default function ReelSheet({ userId, onClose, onPasteClipboard, onSaveRecording, embedded = false }) {
   const [, force] = useState(0)
   const [reelLink, setReelLink] = useState('')
   const [working, setWorking] = useState(false)
@@ -16,16 +16,18 @@ export default function ReelSheet({ userId, onClose, onPasteClipboard, onSaveRec
 
   // Lock background scroll once (empty deps — re-running would capture "hidden" as the previous value).
   useEffect(() => {
+    if (embedded) return undefined
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
-  }, [])
+  }, [embedded])
 
   useEffect(() => {
+    if (embedded) return undefined
     const onKey = (e) => { if (e.key === 'Escape' && !working) onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, working])
+  }, [onClose, working, embedded])
 
   const installed = isStandalone()
   const ios = isIOS()
@@ -57,19 +59,8 @@ export default function ReelSheet({ userId, onClose, onPasteClipboard, onSaveRec
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Send a reel to Serevor">
-      <button aria-label="Close" className="absolute inset-0 bg-black/60 cursor-default" onClick={() => !working && onClose()} />
-      <div
-        className="relative w-full max-w-md lg:max-w-xl max-h-[88vh] overflow-y-auto bg-base-surface border-t border-base-border rounded-t-sheet p-md shadow-card"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
-      >
-        <div className="flex items-center justify-between mb-sm">
-          <h2 className="text-h3 text-ink-primary">Send a reel to Serevor</h2>
-          <button aria-label="Close" onClick={() => !working && onClose()} className="text-ink-secondary hover:text-ink-primary">
-            <X size={22} />
-          </button>
-        </div>
+  const body = (
+    <>
         <p className="text-body-small text-ink-secondary mb-md">
           Serevor pulls out the tips, tools and links, files them, and remembers them for your AI.
         </p>
@@ -168,6 +159,25 @@ export default function ReelSheet({ userId, onClose, onPasteClipboard, onSaveRec
         </div>
 
         {error && <p className="text-caption text-error mt-md" role="alert">{error}</p>}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Send a reel to Serevor">
+      <button aria-label="Close" className="absolute inset-0 bg-black/60 cursor-default" onClick={() => !working && onClose()} />
+      <div
+        className="relative w-full max-w-md lg:max-w-xl max-h-[88vh] overflow-y-auto bg-base-surface border-t border-base-border rounded-t-sheet p-md shadow-card"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+      >
+        <div className="flex items-center justify-between mb-sm">
+          <h2 className="text-h3 text-ink-primary">Send a reel to Serevor</h2>
+          <button aria-label="Close" onClick={() => !working && onClose()} className="text-ink-secondary hover:text-ink-primary">
+            <X size={22} />
+          </button>
+        </div>
+        {body}
       </div>
     </div>
   )
